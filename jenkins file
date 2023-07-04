@@ -1,0 +1,44 @@
+pipeline {
+    agent any
+     stages {
+        stage('SCM Checkout') {
+            steps {
+                git 'https://github.com/damodaranj/my-app.git'
+            }
+        }
+            stage('maven-buildstage') {
+            steps {
+                script {
+                    def mvnHome = tool name: 'maven3', type: 'maven'
+                    sh "${mvnHome}/bin/mvn clean package"
+                    sh 'mv target/myweb*.war target/newapp.war'
+                }
+            }
+        }
+         stage('Build Docker Image') {
+            steps {
+                sh 'docker build -t saidamo/myweb:0.0.2 .'
+            }
+        }
+        stage('Push Docker Image to Registry') {
+            steps {
+                withCredentials([string(credentialsId: 'dockerPass', variable: 'dockerPassword')]) {
+                    sh "docker login -u saidamo -p ${dockerPassword}"
+                }
+                sh 'docker push saidamo/myweb:0.0.2'
+            }
+        }
+        stage('Deploy to Kubernetes') {
+            steps {
+                script {
+                    def kubeconfig = readFile('/path/to/kubeconfig')
+                    
+                    sh """
+                        export KUBECONFIG=${kubeconfig}
+                        kubectl apply -f deployment.yaml
+                    """
+                }
+            }
+        }
+    }
+}
